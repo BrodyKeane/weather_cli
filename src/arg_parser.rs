@@ -9,14 +9,12 @@ pub struct Config {
     coords: Coords,
 }
 
-#[derive(Debug)]
 pub enum Timeframe {
     Current,
     Hourly,
     Daily,
 }
 
-#[derive(Debug)]
 pub enum Unit {
     F,
     C,

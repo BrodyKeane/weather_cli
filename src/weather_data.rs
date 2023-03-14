@@ -6,8 +6,16 @@ use crate::arg_parser::{Config, Timeframe, Unit};
 
 
 pub fn request_weather(config: &Config) -> Result<Value, Box<dyn Error>> {
+    let url = url_builder(&config)?;
+    let client = blocking::Client::new();
+    let response = client.get(url).send()?;
+    let data = response.text()?;
+    let data: Value = serde_json::from_str(&data)?;
+    Ok(data)
+}
+
+fn url_builder(config: &Config) -> Result<Url, Box<dyn Error>> {
     let api_key = "1d2bbf22052ec79487d26582e49430a3".to_string();
-    
     let lat = config.get_lat().to_string();
     let lon = config.get_lon().to_string();
     let unit = match config.unit {
@@ -32,21 +40,17 @@ pub fn request_weather(config: &Config) -> Result<Value, Box<dyn Error>> {
         },
         Timeframe::Daily => {
             url.set_path("data/2.5/forecast");
-            url.query_pairs_mut().append_pair("cnt", "5");
+            url.query_pairs_mut().append_pair("cnt", "32");
         },
     };
-    let client = blocking::Client::new();
-    let response = client.get(url).send()?;
-    let data = response.text()?;
-    let data: Value = serde_json::from_str(&data)?;
-    Ok(data)
+    Ok(url)
 }
-
 
 pub struct WeatherObject {
     pub description: String,
     pub temp: f64,
     pub wind_speed: f64,
+    pub date: String,
     pub time: String,
 }
 
@@ -63,18 +67,25 @@ impl WeatherObject {
         let description = data["weather"][0]["main"].to_string();
         let temp = data["main"]["temp"].as_f64().unwrap();
         let wind_speed = data["wind"]["speed"].as_f64().unwrap();
-        let time = match data.get("dt_txt") {
-            None => "Now".to_string(),
+        let mut date = String::new();
+        let mut time = String::new();
+        match data.get("dt_txt") {
+            None => {
+                date.push_str("Today");
+                time.push_str("Now");
+            },
             Some(_) => {
-                let verbose_time = data["dt_txt"].to_string();
-                verbose_time[12..=16].to_string()
-            }
+                let dt = data["dt_txt"].to_string();
+                date.push_str(&dt[6..=10]);
+                time.push_str(dt[12..=16]);
+            },
         };
         WeatherObject{
             description,
             temp,
             wind_speed,
             time,
+            date,
         }
     }
 }
