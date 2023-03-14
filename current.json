@@ -4,7 +4,8 @@
         "lat":42.7408
     },
     "weather":[{
-            "id":601,"main":"Snow",
+            "id":601,
+            "main":"Snow",
             "description":"snow",
             "icon":"13n"
     }],
