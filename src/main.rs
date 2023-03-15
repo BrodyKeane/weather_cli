@@ -22,5 +22,3 @@ fn main() {
     let weather_objects = WeatherObject::build_all(data);
     weather_data::print_weather(&weather_objects);
 }
-
-
