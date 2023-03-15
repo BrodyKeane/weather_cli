@@ -20,13 +20,7 @@ fn main() {
     });
 
     let weather_objects = WeatherObject::build_all(data);
-
-    for object in weather_objects {
-        println!(
-            "Date: {} | Time: {} | Temp: {} | Description: {} | Wind Speed: {}",
-            object.date, object.time, object.temp, object.description, object.wind_speed
-        )
-    }
+    weather_data::print_weather(&weather_objects);
 }
 
 

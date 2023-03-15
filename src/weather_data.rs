@@ -65,6 +65,7 @@ impl WeatherObject {
 
     fn build(data: &Value) -> WeatherObject {
         let description = data["weather"][0]["main"].to_string();
+        let description = description[1..description.len()-1].to_string();
         let temp = data["main"]["temp"].as_f64().unwrap();
         let wind_speed = data["wind"]["speed"].as_f64().unwrap();
         let mut date = String::new();
@@ -77,7 +78,7 @@ impl WeatherObject {
             Some(_) => {
                 let dt = data["dt_txt"].to_string();
                 date.push_str(&dt[6..=10]);
-                time.push_str(dt[12..=16]);
+                time.push_str(&dt[12..=16]);
             },
         };
         WeatherObject{
@@ -88,4 +89,19 @@ impl WeatherObject {
             date,
         }
     }
+}
+
+pub fn print_weather(weather_objects: &Vec<WeatherObject>) {
+    let line = "+-------------------------------------------------+";  
+    println!("{line}");
+    println!("|  Date   |  Time   |  Temp   | Weather |  Wind   |"); 
+    for object in weather_objects {
+        println!("{line}");
+        println!(
+            "| {date:<7} | {time:<7} | {temp:<7} | {description:<7} | {wind_speed:<7} |",
+            date=object.date, time=object.time, temp=object.temp,
+            description=object.description, wind_speed=object.wind_speed,
+        );
+    }
+    println!("{line}");
 }
