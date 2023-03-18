@@ -19,7 +19,7 @@ pub mod weather_data{
     }
 
     fn url_builder(config: &Config) -> Result<Url, Box<dyn Error>> {
-        let api_key = "1d2bbf22052ec79487d26582e49430a3".to_string();
+        let api_key = config.get_weather_key().to_string();
         let lat = config.get_lat().to_string();
         let lon = config.get_lon().to_string();
         let unit = match config.unit {

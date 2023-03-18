@@ -50,7 +50,7 @@ pub mod arg_parser {
 
             let keys = ApiKeys::request_keys(&json_obj);
             let unit = Self::request_unit(&json_obj);
-            let coords = Self::request_coords(&json_obj);
+            let coords = Self::request_coords(&json_obj, &keys);
 
             let config = Config{ timeframe, unit, coords, keys };
             config.update_json(&path);
@@ -96,15 +96,15 @@ pub mod arg_parser {
             }
         }
 
-        fn request_coords(json_obj: &Value) -> Coords {
+        fn request_coords(json_obj: &Value, keys: &ApiKeys) -> Coords {
             if let Some(lat) = json_obj["lat"].as_str() {
                 if let Some(lon) = json_obj["lon"].as_str() {
                     return Coords{lat: lat.to_string(), lon: lon.to_string()}
                 }
             }
 
-            let api_key = "2l14a2ef217c849719cbf6d2533db560a".to_string();
-            let geocoder = Opencage::new(api_key); 
+            let key = keys.location_key.to_string();
+            let geocoder = Opencage::new(key); 
             let mut location = String::new();
             loop {
                 println!("Enter your location using any standard format");
