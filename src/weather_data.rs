@@ -23,8 +23,8 @@ fn url_builder(config: &Config) -> Result<Url, Box<dyn Error>> {
         Unit::C => "metric".to_string(),
     };
 
-    let mut url = Url::parse_with_params(
-        &format!("https://api.openweathermap.org/"), &[
+    let mut url = Url::parse_with_params( 
+        "https://api.openweathermap.org/", &[
             ("lat", lat),
             ("lon", lon),
             ("units", unit),
@@ -69,6 +69,7 @@ impl WeatherObject {
         let temp = data["main"]["temp"].as_f64().unwrap();
         let wind_speed = data["wind"]["speed"].as_f64().unwrap();
         let mut date = String::new();
+        
         let mut time = String::new();
         match data.get("dt_txt") {
             None => {
