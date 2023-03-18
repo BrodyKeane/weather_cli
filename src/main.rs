@@ -7,6 +7,8 @@ use arg_parser::Config;
 mod weather_data;
 use weather_data::WeatherObject;
 
+mod api_keys;
+
 fn main() {
     let arg = env::args().skip(1).next();
     let config = Config::build(arg).unwrap_or_else(|err| {
