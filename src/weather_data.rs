@@ -19,12 +19,13 @@ pub mod weather_data{
     }
 
     fn url_builder(config: &Config) -> Result<Url, Box<dyn Error>> {
-        let api_key = config.get_weather_key().to_string();
-        let lat = config.get_lat().to_string();
-        let lon = config.get_lon().to_string();
-        let unit = match config.unit {
-            Unit::F => "imperial".to_string(),
-            Unit::C => "metric".to_string(),
+        let api_key = config.get_weather_key().unwrap().to_string();
+        let lat = config.get_lat().unwrap().to_string();
+        let lon = config.get_lon().unwrap().to_string();
+        let unit = match config.get_unit() {
+            Some(Unit::F) => "imperial".to_string(),
+            Some(Unit::C) => "metric".to_string(),
+            None => "metric".to_string(),
         };
 
         let mut url = Url::parse_with_params( 
@@ -36,13 +37,14 @@ pub mod weather_data{
             ]
         )?;
 
-        match config.timeframe {
-            Timeframe::Current => url.set_path("data/2.5/weather"),
-            Timeframe::Hourly => {
+        match config.get_timeframe() {
+            None => url.set_path("data/2.5/weather"),
+            Some(Timeframe::Current) => url.set_path("data/2.5/weather"),
+            Some(Timeframe::Hourly) => {
                 url.set_path("data/2.5/forecast");
                 url.query_pairs_mut().append_pair("cnt", "8");
             },
-            Timeframe::Daily => {
+            Some(Timeframe::Daily) => {
                 url.set_path("data/2.5/forecast");
                 url.query_pairs_mut().append_pair("cnt", "32");
             },

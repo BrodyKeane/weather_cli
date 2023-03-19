@@ -1,26 +1,29 @@
 use std::error::Error;
 use std::io;
-use serde_json::Value;
 use reqwest::{self, blocking::Client, Url};
+use serde::{Serialize, Deserialize};
+
+use crate::arg_parser::Config;
 
 pub use api_keys::ApiKeys;
 
 pub mod api_keys{
     use super::*;
 
+    #[derive(Serialize, Deserialize)]
     pub struct ApiKeys {
         pub weather_key: String,
         pub location_key: String, 
     }
 
     impl ApiKeys {
-        pub fn request_keys(json_obj: &Value) -> ApiKeys {
-            let weather_key = match json_obj.get("weather_key") {
+        pub fn request_keys(config: &Config) -> ApiKeys {
+            let weather_key = match config.get_weather_key() {
                 Some(key) => key.to_string(),
                 None => Self::request_weather_key(),
             };
 
-            let location_key = match json_obj.get("location_key") {
+            let location_key = match config.get_location_key() {
                 Some(key) => key.to_string(),
                 None => Self::request_location_key(),
             };

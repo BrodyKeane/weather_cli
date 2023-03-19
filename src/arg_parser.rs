@@ -1,7 +1,8 @@
+use std::fs::{self, File};
+use std::error::Error;
 use std::io::{self, Write, Read};
-use serde_json::{Value, json};
-use std::fs::File;
 use geocoding::{Opencage, Point, Forward};
+use serde::{Serialize, Deserialize};
 
 use crate::api_keys::ApiKeys;
 
@@ -10,74 +11,84 @@ pub use arg_parser::{Config, Timeframe, Unit};
 pub mod arg_parser {
     use super::*;
 
+    #[derive(Serialize, Deserialize)]
     pub struct Config {
-        pub timeframe: Timeframe,
-        pub unit: Unit,
-        coords: Coords,
-        keys: ApiKeys
+        pub timeframe: Option<Timeframe>,
+        pub unit: Option<Unit>,
+        coords: Option<Coords>,
+        keys: Option<ApiKeys>,
     }
 
+    #[derive(Serialize, Deserialize)]
     pub enum Timeframe {
         Current,
         Hourly,
         Daily,
     }
 
+    #[derive(Serialize, Deserialize)]
     pub enum Unit {
         F,
         C,
     }
 
+    #[derive(Serialize, Deserialize)]
     struct Coords {
         lat: String,
         lon: String,
     }
 
     impl Config {
-        pub fn build(arg: Option<String>) -> Result<Config, String> {
-            let timeframe = Self::match_timeframe(arg)?;
-            
+        pub fn build(arg: Option<String>) -> Result<Config, Box<dyn Error>> {
             let path = "config.json";
-            let mut file = std::fs::File::open(&path).unwrap();
-            let mut contents = String::new();
-            if let Err(_) = file.read_to_string(&mut contents) {
-                return Err("An unknown error occurred while trying to read your config file".to_string());
-            }
-            let json_obj: Value = match serde_json::from_str(&contents) {
-                Ok(value) => value,
-                Err(err) => return Err(err.to_string()),
+            let mut file = match fs::File::open(&path) {
+                Ok(f) => f,
+                Err(_) => {
+                    fs::write(path, "{}")?;
+                    fs::File::open(&path)?
+                },
             };
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)?;
+            let mut config: Config = serde_json::from_str(&contents)?;
 
-            let keys = ApiKeys::request_keys(&json_obj);
-            let unit = Self::request_unit(&json_obj);
-            let coords = Self::request_coords(&json_obj, &keys);
+            config.set_timeframe(arg)?;
+            config.set_keys();
+            config.set_unit();
+            config.set_coords();
 
-            let config = Config{ timeframe, unit, coords, keys };
-            config.update_json(&path);
+            config.update_json(&path)?;
 
             Ok(config)
         }
 
-        fn match_timeframe(arg: Option<String>) -> Result<Timeframe, String> {
-            match arg {
-                None => Ok(Timeframe::Current),
+        fn update_json(&mut self, path: &str) -> Result<(), Box<dyn Error>> {
+            let json = serde_json::to_string(&self)?;
+            let mut file = File::create(path)?;
+            file.write_all(json.as_bytes())?;
+            Ok(())
+        }     
+
+        fn set_timeframe(&mut self, arg: Option<String>) -> Result<(), String> {
+            self.timeframe = match arg {
+                None => Some(Timeframe::Current),
                 Some(val) => match val.as_str() {
-                    "current" => Ok(Timeframe::Current),
-                    "hourly" => Ok(Timeframe::Hourly),
-                    "daily" => Ok(Timeframe::Daily),
+                    "current" => Some(Timeframe::Current),
+                    "hourly" => Some(Timeframe::Hourly),
+                    "daily" => Some(Timeframe::Daily),
                     input => return Err(format!("Failed to parse input: {}", input).into()),
                 }
-            }
+            };
+            Ok(())
         }
 
+        fn set_keys(&mut self) {
+            self.keys = Some(ApiKeys::request_keys(self));
+        }
         
-        fn request_unit(json_obj: &Value) -> Unit {
-            if let Some(val) = json_obj["unit"].as_str() {
-                match val.trim().to_uppercase().as_str() {
-                    "F" => return Unit::F,
-                    "C" => return Unit::C,
-                    _ => (),               
-                }
+        fn set_unit(&mut self) {
+            if let Some(_) = self.unit {
+                return
             } 
             loop {
                 println!("Please input your preferred unit. (F or C):");
@@ -88,22 +99,26 @@ pub mod arg_parser {
                     continue
                 }
 
-                match input.trim().to_uppercase().as_str() {
-                    "F" => return Unit::F,
-                    "C" => return Unit::C,
-                    _ => println!("Input didn't match values: (F or C)."),
-                }
+                let unit = match input.trim().to_uppercase().as_str() {
+                    "F" => Unit::F,
+                    "C" => Unit::C,
+                    _ => {
+                        println!("Input didn't match values: (F or C).");
+                        continue
+                    },
+                };
+
+                self.unit = Some(unit);
+                break
             }
         }
 
-        fn request_coords(json_obj: &Value, keys: &ApiKeys) -> Coords {
-            if let Some(lat) = json_obj["lat"].as_str() {
-                if let Some(lon) = json_obj["lon"].as_str() {
-                    return Coords{lat: lat.to_string(), lon: lon.to_string()}
-                }
+        fn set_coords(&mut self) {
+            if let Some(_) = self.coords {
+                return
             }
 
-            let key = keys.location_key.to_string();
+            let key = self.get_location_key().unwrap().to_string();
             let geocoder = Opencage::new(key); 
             let mut location = String::new();
             loop {
@@ -124,45 +139,52 @@ pub mod arg_parser {
             
                 let lon = &result[0].x();
                 let lat = &result[0].y();
-                    return Coords {lat: lat.to_string(), lon: lon.to_string()}
+
+                
+                self.coords = Some(
+                    Coords{
+                        lat: lat.to_string(),
+                        lon: lon.to_string()
+                    }
+                );
+                return 
             }
         }
 
-        fn update_json(&self, path: &str) {
-            let data = json!({
-                "unit": self.get_unit(),
-                "lat": self.get_lat(),
-                "lon": self.get_lon(),
-                "weather_key": self.get_weather_key(),
-                "location_key": self.get_location_key(),
-            });
+        pub fn get_timeframe(&self) -> &Option<Timeframe> {
+            &self.timeframe
+        }
+        
+        pub fn get_unit(&self) -> &Option<Unit> {
+            &self.unit
+        }
 
-            let json_string = serde_json::to_string(&data).unwrap();
-            let mut file = File::create(path).unwrap();
-            file.write_all(json_string.as_bytes()).unwrap();
-        }     
-
-        pub fn get_unit(&self) -> &str{
-            match self.unit {
-                Unit::F => "F",
-                Unit::C => "C",
+        pub fn get_lat(&self) -> Option<&String> {
+            match &self.coords {
+                Some(coords) => Some(&coords.lat),
+                None => None,
             }
         }
 
-        pub fn get_lat(&self) -> &String {
-            &self.coords.lat
+        pub fn get_lon(&self) -> Option<&String> {
+            match &self.coords {
+                Some(coords) => Some(&coords.lon),
+                None => None,
+            }
         }
 
-        pub fn get_lon(&self) -> &String {
-            &self.coords.lon
+        pub fn get_weather_key(&self) -> Option<&String> {
+            match &self.keys {
+                Some(keys) => Some(&keys.weather_key),
+                None => None,
+            }
         }
 
-        pub fn get_weather_key(&self) -> &String {
-            &self.keys.weather_key
-        }
-
-        pub fn get_location_key(&self) -> &String {
-            &self.keys.location_key
+        pub fn get_location_key(&self) -> Option<&String> {
+            match &self.keys {
+                Some(keys) => Some(&keys.location_key),
+                None => None,
+            }
         }
     }
 }
