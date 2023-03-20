@@ -21,6 +21,6 @@ fn main() {
         process::exit(1);
     });
 
-    let weather_objects = WeatherObject::build_all(data);
+    let weather_objects = WeatherObject::build_all(data, config);
     weather_data::print_weather(&weather_objects);
 }

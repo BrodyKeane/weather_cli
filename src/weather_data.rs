@@ -13,8 +13,9 @@ pub mod weather_data{
         let url = url_builder(&config)?;
         let client = blocking::Client::new();
         let response = client.get(url).send()?;
-        let data = response.text()?;
-        let data: Value = serde_json::from_str(&data)?;
+        let text = response.text()?;
+        let data: Value = serde_json::from_str(&text)?;
+
         Ok(data)
     }
 
@@ -52,6 +53,7 @@ pub mod weather_data{
         Ok(url)
     }
 
+    #[derive(Clone)]
     pub struct WeatherObject {
         pub description: String,
         pub temp: f64,
@@ -61,12 +63,25 @@ pub mod weather_data{
     }
 
     impl WeatherObject {
-        pub fn build_all(data: Value) -> Vec<Self> {
+        pub fn build_all(data: Value, config: Config) -> Vec<Self> {
             if let None = data.get("list") { 
                 return vec![Self::build(&data)]
             }
-            let data_groups = data["list"].as_array().unwrap().clone();
-            data_groups.iter().map(|x| Self::build(x)).collect()
+            let data_groups = data["list"].as_array().unwrap();
+            match config.timeframe.unwrap() {
+                Timeframe::Current => vec![Self::build(&data)],
+                Timeframe::Hourly => data_groups.iter().map(|x| Self::build(x)).collect(),
+                Timeframe::Daily => {
+                    let weather_objects: Vec<Self> = data_groups.iter().map(|x| Self::build(x)).collect();
+                    let mut daily_objects = Vec::new();
+                    for (i, object) in weather_objects.iter().enumerate() {
+                        if i == 0 || (i + 1) % 8 == 0  {
+                            daily_objects.push(object.clone());
+                        }
+                    }
+                    daily_objects
+                },
+            }
         }
 
         fn build(data: &Value) -> WeatherObject {

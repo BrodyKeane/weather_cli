@@ -40,17 +40,8 @@ pub mod arg_parser {
 
     impl Config {
         pub fn build(arg: Option<String>) -> Result<Config, Box<dyn Error>> {
-            let path = "config.json";
-            let mut file = match fs::File::open(&path) {
-                Ok(f) => f,
-                Err(_) => {
-                    fs::write(path, "{}")?;
-                    fs::File::open(&path)?
-                },
-            };
-            let mut contents = String::new();
-            file.read_to_string(&mut contents)?;
-            let mut config: Config = serde_json::from_str(&contents)?;
+            let path = "config.josn";
+            let mut config = Self::get_config(&path)?;
 
             config.set_timeframe(arg)?;
             config.set_keys();
@@ -59,6 +50,20 @@ pub mod arg_parser {
 
             config.update_json(&path)?;
 
+            Ok(config)
+        }
+
+        fn get_config(path: &str) -> Result<Config, Box<dyn Error>> {
+            let mut file = match fs::File::open(path) {
+                Ok(f) => f,
+                Err(_) => {
+                    fs::write(path, "{}")?;
+                    fs::File::open(path)?
+                },
+            };
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)?;
+            let config: Config = serde_json::from_str(&contents)?;
             Ok(config)
         }
 
