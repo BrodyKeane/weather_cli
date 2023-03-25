@@ -22,9 +22,12 @@ struct Coords {
     lon: String,
 }
 
+const CONFIG_PATH: &str = "config.json";
+
+
 fn main() {
     run().unwrap_or_else(|err| {
-        eprintln!("Problem parsing arguments: {err}");
+        eprintln!("{err}");
         process::exit(1);
     }); 
 }
@@ -32,26 +35,24 @@ fn main() {
 fn run() -> Result<(), Box<dyn Error>> {
     let timeframe = get_timeframe()?;
     let coords = get_coords();
+    let mut config = get_config()?;
 
-    let config_path = "config.json";
-    let mut config = get_config(config_path)?;
-
-    if let None = config.get("weather_key") {
+    if config.get("weather_key").is_none() {
         request_weather_key(&mut config)?;
-   };
-
-    if let None = config.get("unit") {
+    };
+    if config.get("unit").is_none() {
         request_unit(&mut config);
-    }
+    };
 
     let url = build_url(&config, coords, &timeframe)?;
     let weather_objects = get_weather_data(url, &timeframe)?;
 
     print_weather(weather_objects);
-    update_json(config, config_path)?;
+    update_json(config)?;
 
     Ok(())
 }
+
 
 fn get_timeframe() -> Result<Timeframe, String> {
     match env::args().skip(1).next() {
@@ -65,13 +66,15 @@ fn get_timeframe() -> Result<Timeframe, String> {
     }
 }
 
-fn get_config(config_path: &str) -> Result<Value, Box<dyn Error>>{
-    let config_string = match fs::read_to_string(config_path) {
+
+fn get_config() -> Result<Value, Box<dyn Error>>{
+    let config_string = match fs::read_to_string(CONFIG_PATH) {
         Ok(string) => string,
         Err(_) => "{}".to_string(),
     };
     Ok(serde_json::from_str(&config_string)?)
 }
+
 
 fn request_weather_key(config: &mut Value) -> Result<(), Box<dyn Error>> {
     let url = "https://home.openweathermap.org/users/sign_up";
@@ -114,6 +117,7 @@ fn request_weather_key(config: &mut Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+
 fn request_unit(config: &mut Value) {
     let unit = loop {
         println!("\nPlease input your preferred unit. (imperial or metric):");
@@ -140,6 +144,7 @@ fn request_unit(config: &mut Value) {
         .insert("unit".to_string(), json!(unit));
 }
 
+
 fn get_coords() -> Coords {
     let stream = TcpStream::connect("example.com:80").unwrap();
     let addr = stream.peer_addr().unwrap().to_string();
@@ -152,6 +157,7 @@ fn get_coords() -> Coords {
         lon: info.longitude
     }
 }
+
 
 fn build_url(config: &Value, coords: Coords, timeframe: &Timeframe)
     -> Result<Url, Box<dyn Error>> {
@@ -182,6 +188,7 @@ fn build_url(config: &Value, coords: Coords, timeframe: &Timeframe)
     Ok(url)
 }
 
+
 fn get_weather_data(url: Url, timeframe: &Timeframe) -> Result<Vec<Value>, Box<dyn Error>> {
     let weather_data: Value = serde_json::from_str(
         &blocking::Client::new()
@@ -204,6 +211,7 @@ fn get_weather_data(url: Url, timeframe: &Timeframe) -> Result<Vec<Value>, Box<d
         }
     }
 }
+
 
 fn print_weather(weather_objects: Vec<Value>) {
     let line = "+-------------------------------------------------+";  
@@ -240,9 +248,10 @@ fn print_weather(weather_objects: Vec<Value>) {
     println!("{line}");
 }
 
-fn update_json(config: Value, config_path: &str) -> Result<(), Box<dyn Error>> {
+
+fn update_json(config: Value) -> Result<(), Box<dyn Error>> {
     let json_string = serde_json::to_string(&config)?;
-    let mut file = File::create(config_path)?;
+    let mut file = File::create(CONFIG_PATH)?;
     file.write_all(json_string.as_bytes())?;
     Ok(())
 }
