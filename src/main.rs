@@ -17,6 +17,7 @@ enum Timeframe {
     Daily,
 }
 
+#[derive(Debug)]
 struct Coords {
     lat: String,
     lon: String,
@@ -35,6 +36,7 @@ fn main() {
 fn run() -> Result<(), Box<dyn Error>> {
     let timeframe = get_timeframe()?;
     let coords = get_coords();
+    println!("{:?}", coords);
     let mut config = get_config()?;
 
     if config.get("weather_key").is_none() {
@@ -73,7 +75,7 @@ fn get_config() -> Result<Value, Box<dyn Error>>{
         Err(_) => "{}".to_string(),
     };
     Ok(serde_json::from_str(&config_string)?)
-}
+}//unwrap or default
 
 
 fn request_weather_key(config: &mut Value) -> Result<(), Box<dyn Error>> {
@@ -147,14 +149,12 @@ fn request_unit(config: &mut Value) {
 
 fn get_coords() -> Coords {
     let stream = TcpStream::connect("example.com:80").unwrap();
-    let addr = stream.peer_addr().unwrap().to_string();
-    let addr_parts: Vec<&str> = addr.split(":").collect();
-    let ip = addr_parts[0];
+    let ip = stream.peer_addr().unwrap().ip().to_string();
     let info = geolocation::find(&ip).unwrap();
 
     Coords{ 
         lat: info.latitude,
-        lon: info.longitude
+        lon: info.longitude,
     }
 }
 
@@ -182,9 +182,10 @@ fn build_url(config: &Value, coords: Coords, timeframe: &Timeframe)
         },
         Timeframe::Daily => {
             url.set_path("data/2.5/forecast");
-            url.query_pairs_mut().append_pair("cnt", "32");
+            url.query_pairs_mut().append_pair("cnt", "33");
         },
     };
+    println!("{}", url);
     Ok(url)
 }
 
@@ -196,20 +197,21 @@ fn get_weather_data(url: Url, timeframe: &Timeframe) -> Result<Vec<Value>, Box<d
         .send()?
         .text()?
     )?;
-    match timeframe {
-        Timeframe::Current => Ok(vec![weather_data]),
-        Timeframe::Hourly => Ok(weather_data["list"].as_array().unwrap().to_vec()),
+
+    let weather_objects = match timeframe {
+        Timeframe::Current => vec![weather_data],
+        Timeframe::Hourly => weather_data["list"].as_array().unwrap().to_owned(),
         Timeframe::Daily => {
-            let all_objects = weather_data["list"].as_array().unwrap();
-            let mut daily_objects = Vec::new();
-            for (i, object) in all_objects.iter().enumerate() {
-                if i == 0 || (i + 1) % 8 == 0  {
-                    daily_objects.push(object.clone());
-                }
-            }
-            Ok(daily_objects)
+            weather_data["list"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .step_by(8)
+                .map(|x| x.clone())
+                .collect::<Vec<Value>>()
         }
-    }
+    };
+    Ok(weather_objects)
 }
 
 
